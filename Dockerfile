@@ -3,8 +3,7 @@ FROM balenalib/raspberrypi5-debian:bookworm-build
 WORKDIR /root
 
 # Install generic requirements
-RUN apt-get update && \
-    apt-get install -y software-properties-common wget
+RUN install_packages software-properties-common wget
 
 # Need to create a sources.list file for apt-add-repository to work correctly:
 # https://groups.google.com/g/linux.debian.bugs.dist/c/6gM_eBs4LgE
@@ -20,7 +19,7 @@ RUN echo '#!/bin/bash\nexit 0' > /usr/bin/systemctl && chmod +x /usr/bin/systemc
 RUN mkdir -p /run/systemd && echo 'docker' > /run/systemd/container
 
 # Dependencies for hailo-tappas-core
-RUN apt-get install -y python3 ffmpeg x11-utils python3-dev python3-pip python3-venv \
+RUN install_packages python3 ffmpeg x11-utils python3-dev python3-pip python3-venv \
     python3-setuptools gcc-12 g++-12 python-gi-dev pkg-config libcairo2-dev \
     libgirepository1.0-dev libgstreamer1.0-dev cmake \
     libgstreamer-plugins-base1.0-dev libzmq3-dev rsync git \
@@ -29,11 +28,11 @@ RUN apt-get install -y python3 ffmpeg x11-utils python3-dev python3-pip python3-
     gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-libcamera libopencv-dev \
     python3-opencv python3-picamera2
 
-RUN mkdir -p hailort
-RUN git clone --branch master-v4.18.1 --depth 1 https://github.com/hailo-ai/hailort.git hailort/sources
-
-# Build and install hailortcli, libhailort, python bindings from source.
-RUN cd hailort/sources && cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DHAILO_BUILD_EXAMPLES=1 -DHAILO_BUILD_PYBIND=1 -DPYBIND11_PYTHON_VERSION=3.11 && sudo cmake --build build --config release --target install
+# Build libhailort, hailortcli and python bindings from source
+RUN mkdir -p hailort && \
+    git clone --branch master-v4.18.1 --depth 1 https://github.com/hailo-ai/hailort.git hailort/sources && \
+    cd hailort/sources && cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DHAILO_BUILD_EXAMPLES=1 -DHAILO_BUILD_PYBIND=1 -DPYBIND11_PYTHON_VERSION=3.11 && \
+    sudo cmake --build build --config release --target install
 
 # build and copy hailort python wheel.
 RUN cd hailort/sources/hailort/libhailort/bindings/python/platform/ && \
@@ -47,7 +46,7 @@ RUN . venv/bin/activate && pip3 install -U opencv-python==4.7.0.72 vidgear[async
 
 # Bring our source code into docker context, everything not in .dockerignore
 COPY . . 
-RUN ls -l
+
 # launch our app.
 RUN chmod +x start.sh
 CMD ["./start.sh"]
