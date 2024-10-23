@@ -4,6 +4,8 @@ from vidgear.gears.asyncio import WebGear_RTC
 from vidgear.gears import PiGear
 from libcamera import Transform
 import cv2
+import re
+import os
 
 # Define an interface for object detectors
 class ObjectDetector:
@@ -84,6 +86,32 @@ class Custom_Stream_Class:
         # Set the object detector
         self.object_detector = object_detector
 
+        # Read screen resolution from /sys/class/graphics/fb0/modes
+        self.fb_width, self.fb_height = self.get_framebuffer_resolution()
+        # Open framebuffer device
+        self.fbdev = '/dev/fb0'  # or '/dev/fb1' depending on your system
+        try:
+            self.fbfd = open(self.fbdev, 'wb')  # Open in write binary mode
+        except IOError as e:
+            print(f"Error opening framebuffer device {self.fbdev}: {e}")
+            self.fbfd = None
+
+    def get_framebuffer_resolution(self):
+        try:
+            with open('/sys/class/graphics/fb0/modes', 'r') as f:
+                mode_line = f.readline().strip()
+                # Extract the resolution
+                match = re.search(r'(\d+)x(\d+)', mode_line)
+                if match:
+                    fb_width = int(match.group(1))
+                    fb_height = int(match.group(2))
+                else:
+                    fb_width, fb_height = 480, 800
+        except IOError as e:
+            print(f"Error reading framebuffer modes: {e}")
+            fb_width, fb_height = 480, 800  # Default resolution
+        return fb_width, fb_height
+
     def read(self):
         # Check if stream was initialized or not
         if self.stream is None:
@@ -108,6 +136,8 @@ class Custom_Stream_Class:
                             cv2.rectangle(frame, (x0, y0), (x1, y1), (0, 255, 0), 2)
                             cv2.putText(frame, label, (x0 + 5, y0 + 15),
                                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                # Write frame to framebuffer
+                self.write_to_framebuffer(frame)
                 # Return the augmented frame
                 return frame
             else:
@@ -115,6 +145,21 @@ class Custom_Stream_Class:
                 self.running = False
         # Return None-type
         return None
+
+    def write_to_framebuffer(self, frame):
+        if self.fbfd is None:
+            return
+        # Convert frame to BGRA
+        frame32 = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+        # Resize frame to framebuffer resolution
+        fbframe = cv2.resize(frame32, (self.fb_width, self.fb_height))
+        # Write to framebuffer
+        try:
+            self.fbfd.seek(0)
+            self.fbfd.write(fbframe.tobytes())
+            self.fbfd.flush()
+        except IOError as e:
+            print(f"Error writing to framebuffer: {e}")
 
     def stop(self):
         # Flag that we're not running
@@ -125,6 +170,9 @@ class Custom_Stream_Class:
         # Close object detector if it has a close method
         if self.object_detector is not None:
             self.object_detector.close()
+        # Close framebuffer device
+        if self.fbfd is not None:
+            self.fbfd.close()
 
 # Formulate various PiCamera2 API configuration parameters
 options = {
@@ -160,7 +208,7 @@ stream_options = {"custom_stream": Custom_Stream_Class(options=options, object_d
 # Initialize WebGear_RTC app without any source
 web = WebGear_RTC(enablePiCamera=True, logging=True, **stream_options)
 
-# Run this app on Uvicorn server at address http://localhost:8000/
+# Run this app on Uvicorn server at address http://localhost:8080/
 uvicorn.run(web(), host="0.0.0.0", port=8080)
 
 # Close app safely
