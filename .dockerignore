@@ -1,0 +1,54 @@
+# Ignore Python bytecode files
+*.pyc
+*.pyo
+__pycache__/
+
+# Ignore logs
+*.log
+*.out
+
+# Ignore virtual environments
+venv/
+.venv/
+
+# Ignore test-related files and directories
+tests/
+*.coverage
+.coverage.*
+.cache/
+.nox/
+.tox/
+
+# Ignore distribution/build files
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Ignore environment variable/config files
+.env
+.env.*
+
+# Ignore IDE/editor-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore Docker-related files (if not needed in the image)
+Dockerfile*
+docker-compose.yml
+
+# Ignore miscellaneous
+.git/
+.gitignore
+*.md
+
+# Ignore pip cache
+pip-wheel-metadata/
+*.whl
+__pypackages__/
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db

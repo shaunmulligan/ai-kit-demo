@@ -32,13 +32,22 @@ RUN apt-get install -y python3 ffmpeg x11-utils python3-dev python3-pip python3-
 RUN mkdir -p hailort
 RUN git clone --branch master-v4.18.1 --depth 1 https://github.com/hailo-ai/hailort.git hailort/sources
 
-RUN cd hailort/sources && cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DHAILO_BUILD_EXAMPLES=1 && sudo cmake --build build --config release --target install
-    
+# Build and install hailortcli, libhailort, python bindings from source.
+RUN cd hailort/sources && cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DHAILO_BUILD_EXAMPLES=1 -DHAILO_BUILD_PYBIND=1 -DPYBIND11_PYTHON_VERSION=3.11 && sudo cmake --build build --config release --target install
+
+# build and copy hailort python wheel.
+RUN cd hailort/sources/hailort/libhailort/bindings/python/platform/ && \
+    python3 setup.py bdist_wheel && \
+    cp dist/hailort-4.18.1-cp311-cp311-linux_aarch64.whl /root/hailort-4.18.1-cp311-cp311-linux_aarch64.whl
 
 WORKDIR /app
-# create python virtual env
+# create python virtual env and install pip dependencies.
 RUN python3 -m venv venv --system-site-packages
-RUN . venv/bin/activate && pip3 install -U vidgear[asyncio] uvicorn
-COPY . . 
+RUN . venv/bin/activate && pip3 install -U opencv-python==4.7.0.72 vidgear[asyncio] uvicorn /root/hailort-4.18.1-cp311-cp311-linux_aarch64.whl
 
-CMD ["balena-idle"]
+# Bring our source code into docker context, everything not in .dockerignore
+COPY . . 
+RUN ls -l
+# launch our app.
+RUN chmod +x start.sh
+CMD ["./start.sh"]
