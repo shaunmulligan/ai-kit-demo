@@ -27,7 +27,13 @@ RUN apt-get install -y python3 ffmpeg x11-utils python3-dev python3-pip python3-
     libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
     gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-libcamera libopencv-dev \
-    python3-opencv python3-picamera2 hailo-all
+    python3-opencv python3-picamera2
+
+RUN mkdir -p hailort
+RUN git clone --branch master-v4.18.1 --depth 1 https://github.com/hailo-ai/hailort.git hailort/sources
+
+RUN cd hailort/sources && cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DHAILO_BUILD_EXAMPLES=1 && sudo cmake --build build --config release --target install
+    
 
 WORKDIR /app
 # create python virtual env
