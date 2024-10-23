@@ -5,7 +5,8 @@ from vidgear.gears import PiGear
 from libcamera import Transform
 import cv2
 import re
-import os
+import threading
+import time
 
 # Define an interface for object detectors
 class ObjectDetector:
@@ -96,7 +97,16 @@ class Custom_Stream_Class:
             print(f"Error opening framebuffer device {self.fbdev}: {e}")
             self.fbfd = None
 
+        # Thread-safe variable to hold the latest frame
+        self.latest_frame = None
+        self.frame_lock = threading.Lock()
+
+        # Start the inference and framebuffer writing thread
+        self.inference_thread = threading.Thread(target=self.inference_loop, daemon=True)
+        self.inference_thread.start()
+
     def get_framebuffer_resolution(self):
+        import os
         try:
             with open('/sys/class/graphics/fb0/modes', 'r') as f:
                 mode_line = f.readline().strip()
@@ -106,18 +116,14 @@ class Custom_Stream_Class:
                     fb_width = int(match.group(1))
                     fb_height = int(match.group(2))
                 else:
-                    fb_width, fb_height = 480, 800
+                    fb_width, fb_height = 1920, 1080
         except IOError as e:
             print(f"Error reading framebuffer modes: {e}")
-            fb_width, fb_height = 480, 800  # Default resolution
+            fb_width, fb_height = 1920, 1080  # Default resolution
         return fb_width, fb_height
 
-    def read(self):
-        # Check if stream was initialized or not
-        if self.stream is None:
-            return None
-        # Check if we're still running
-        if self.running:
+    def inference_loop(self):
+        while self.running:
             # Read frame from the stream
             frame = self.stream.read()
             # Check if frame is available
@@ -138,13 +144,14 @@ class Custom_Stream_Class:
                                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
                 # Write frame to framebuffer
                 self.write_to_framebuffer(frame)
-                # Return the augmented frame
-                return frame
+                # Update the latest frame
+                with self.frame_lock:
+                    self.latest_frame = frame.copy()
             else:
-                # Signal we're not running now
+                # End the loop if no frame is available
                 self.running = False
-        # Return None-type
-        return None
+            # Add a small delay to avoid high CPU usage
+            time.sleep(0.01)
 
     def write_to_framebuffer(self, frame):
         if self.fbfd is None:
@@ -161,9 +168,20 @@ class Custom_Stream_Class:
         except IOError as e:
             print(f"Error writing to framebuffer: {e}")
 
+    def read(self):
+        # Return the latest frame
+        with self.frame_lock:
+            if self.latest_frame is not None:
+                return self.latest_frame.copy()
+            else:
+                return None
+
     def stop(self):
         # Flag that we're not running
         self.running = False
+        # Wait for the inference thread to finish
+        if self.inference_thread.is_alive():
+            self.inference_thread.join()
         # Close stream
         if self.stream is not None:
             self.stream.stop()
@@ -203,7 +221,10 @@ model_path = "yolov8s_h8l.hef"  # Replace with your model's path
 object_detector = HailoObjectDetector(model_path=model_path, class_names=class_names, score_thresh=0.5)
 
 # Assign your Custom Streaming Class with options to `custom_stream` attribute in options parameter
-stream_options = {"custom_stream": Custom_Stream_Class(options=options, object_detector=object_detector),"custom_data_location": "/app/client"}
+stream_options = {
+    "custom_stream": Custom_Stream_Class(options=options, object_detector=object_detector),
+    "custom_data_location": "/app/client"
+}
 
 # Initialize WebGear_RTC app without any source
 web = WebGear_RTC(enablePiCamera=True, logging=True, **stream_options)
