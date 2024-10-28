@@ -221,7 +221,7 @@ options = {
     "queue": True,
     "buffer_count": 4,
     # "controls": {"Brightness": 0.5, "ExposureValue": 2.0},
-    "transform": Transform(hflip=1),
+    "transform": Transform(hflip=1, vflip=1),
     # "sensor": {"output_size": (480, 320)},  # Will override `resolution`
     "auto_align_output_size": True,  # Auto-align output size
 }
