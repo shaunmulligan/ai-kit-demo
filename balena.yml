@@ -1,0 +1,16 @@
+name: object-detector
+description: >-
+  Camera Object detection demo with streaming to webRTC
+version: 1.0.0
+type: sw.block
+assets:
+  repository:
+    type: blob.asset
+    data:
+      url: 'https://github.com/shaunmulligan/ai-kit-demo'
+data:
+  defaultDeviceType: raspberrypi5
+  supportedDeviceTypes:
+    - raspberrypi5
+    - raspberrypi4-64
+    - raspberrypi3-64
