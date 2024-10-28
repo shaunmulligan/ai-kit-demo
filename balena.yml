@@ -1,7 +1,7 @@
 name: object-detector
 description: >-
   Camera Object detection demo with streaming to webRTC
-version: 1.0.0
+version: 1.1.0
 type: sw.block
 assets:
   repository:
