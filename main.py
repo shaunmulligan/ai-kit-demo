@@ -7,6 +7,7 @@ import cv2
 import re
 import threading
 import time
+import os
 
 # Define an interface for object detectors
 class ObjectDetector:
@@ -73,6 +74,30 @@ class HailoObjectDetector(ObjectDetector):
         # Close Hailo model if needed
         self.hailo_model.close()
 
+# OpenCV face detector implementation
+class OpenCVFaceDetector(ObjectDetector):
+    def __init__(self):
+        super().__init__()
+        # Load the Haar cascade for face detection
+        self.face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+        if self.face_cascade.empty():
+            print(f"Error loading Haar Cascade XML file for face detection from {haarcascade_path}.")
+
+    def detect(self, frame, frame_w, frame_h):
+        # Convert frame to grayscale as Haar Cascade works on grayscale images
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Detect faces
+        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+        # Prepare detections in the format [(class_name, bbox, score), ...]
+        detections = []
+        for (x, y, w, h) in faces:
+            bbox = (x, y, x + w, y + h)
+            detections.append(('face', bbox, 1.0))  # Assuming score=1.0 for detected faces
+        return detections
+
+    def close(self):
+        pass  # No special cleanup required
+
 # Define your own custom streaming class
 class Custom_Stream_Class:
     """
@@ -106,7 +131,6 @@ class Custom_Stream_Class:
         self.inference_thread.start()
 
     def get_framebuffer_resolution(self):
-        import os
         try:
             with open('/sys/class/graphics/fb0/modes', 'r') as f:
                 mode_line = f.readline().strip()
@@ -116,10 +140,10 @@ class Custom_Stream_Class:
                     fb_width = int(match.group(1))
                     fb_height = int(match.group(2))
                 else:
-                    fb_width, fb_height = 1920, 1080
+                    fb_width, fb_height = 800, 480
         except IOError as e:
             print(f"Error reading framebuffer modes: {e}")
-            fb_width, fb_height = 1920, 1080  # Default resolution
+            fb_width, fb_height = 800, 480  # Default resolution
         return fb_width, fb_height
 
     def inference_loop(self):
@@ -202,7 +226,7 @@ options = {
     "auto_align_output_size": True,  # Auto-align output size
 }
 
-# Define class names for detection
+# Define class names for detection (used only if Hailo is available)
 class_names = ['person', 'bicycle', 'car', 'motorbike', 'aeroplane', 'bus', 'train',
                'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter',
                'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
@@ -216,9 +240,16 @@ class_names = ['person', 'bicycle', 'car', 'motorbike', 'aeroplane', 'bus', 'tra
                'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock',
                'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
 
-# Initialize object detector
-model_path = "yolov8s_h8l.hef"  # Replace with your model's path
-object_detector = HailoObjectDetector(model_path=model_path, class_names=class_names, score_thresh=0.5)
+# Check if Hailo AI accelerator is available
+if os.path.exists('/dev/hailo0'):
+    # Hailo device exists, use HailoObjectDetector
+    print("Hailo AI accelerator detected. Using HailoObjectDetector.")
+    model_path = "yolov8s_h8l.hef"  # Replace with your model's path
+    object_detector = HailoObjectDetector(model_path=model_path, class_names=class_names, score_thresh=0.5)
+else:
+    # Hailo device not found, use OpenCVFaceDetector
+    print("Hailo AI accelerator not detected. Using OpenCVFaceDetector.")
+    object_detector = OpenCVFaceDetector()
 
 # Assign your Custom Streaming Class with options to `custom_stream` attribute in options parameter
 stream_options = {
